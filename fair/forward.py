@@ -4,7 +4,7 @@ import inspect
 import numpy as np
 import warnings
 
-from .ancil import natural, cmip6_volcanic, cmip6_solar, historical_scaling
+from .ancil import natural, cmip6_volcanic, cmip6_solar_off, historical_scaling ##EEM - turned solar EFR off
 from .constants import molwt, lifetime, radeff
 from .constants.general import M_ATMOS, ppm_gtc
 from .defaults import carbon, thermal
@@ -39,7 +39,7 @@ def emis_to_conc(c0, e0, e1, ts, lt, vm):
     c1 = c0 - c0 * (1.0 - np.exp(-ts/lt)) + 0.5 * ts * (e1 + e0) * vm
     return c1
 
-
+# EEM solar off
 def fair_scm(
     emissions=False,
     emissions_driven=True,
@@ -64,7 +64,7 @@ def fair_scm(
     F_tropO3 = 0.,
     F_aerosol = 0.,
     F_volcanic=cmip6_volcanic.Forcing.volcanic,
-    F_solar=cmip6_solar.Forcing.solar,
+    F_solar=cmip6_solar_off.Forcing.solar, 
     F_contrails=0.,
     F_bcsnow=0.,
     F_landuse=0.,
@@ -238,6 +238,9 @@ def fair_scm(
             if type(natural) in [float,int]:
                 natural = natural * np.ones((nt,2))
             elif type(natural) is np.ndarray:
+                #EEM: use only the years relevant to the input emission files
+                # start year should be 1765, end year can be any year < 2500
+                natural = natural[:nt,:]
                 if natural.ndim==1:
                     if natural.shape[0]!=2:
                         raise ValueError(
@@ -245,10 +248,12 @@ def fair_scm(
                           "array")
                     natural = np.tile(natural, nt).reshape((nt,2))
                 elif natural.ndim==2:
-                    if natural.shape[1]!=2 or natural.shape[0]!=nt:
+                    if natural.shape[1]!=2:# EEM or natural.shape[0]!=nt:
                         raise ValueError(
-                          "natural emissions should be a 2-element or nt x 2 " +
-                          "array")
+                          "natural emissions should be a 2 column array")
+                    elif natural.shape[0]!=nt:
+                        raise ValueError(
+                          "natural emissions should be an array with nt rows")
             else:
                 raise ValueError(
                   "natural emissions should be a scalar, 2-element, or nt x 2 " +
@@ -651,6 +656,11 @@ def fair_scm(
             F[:,iF_luch] = F_landuse
 
         # Volcanic and solar copied straight to the output arrays
+        # **EEM: resize F_volcanic and F_solar arrays to match the
+        # years included in the current emissions file
+        F_volcanic = F_volcanic[:nt]
+        F_solar = F_solar[:nt]
+        # **
         F[:,iF_volc] = F_volcanic
         F[:,iF_solr] = F_solar
 
